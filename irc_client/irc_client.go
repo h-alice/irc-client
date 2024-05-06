@@ -1,4 +1,4 @@
-package twitch_irc
+package irc_client
 
 import (
 	"bytes"
