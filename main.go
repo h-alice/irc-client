@@ -31,7 +31,7 @@ type IrcClient struct {
 	messageCallbacks []IrcMessageCallback
 
 	// WaitGroup for the sender and receiver
-	clientLoopWaitGroup *sync.WaitGroup
+	clientLoopCondition *sync.Cond
 	rwWaitGroup         *sync.WaitGroup // WaitGroup for the sender and receiver
 }
 
@@ -95,7 +95,20 @@ func (ircc *IrcClient) receiverLoop(ctx context.Context) {
 	}
 }
 
-func (ircc *IrcClient) ClientLoop(ctx context.Context) {
+func (ircc *IrcClient) receiverCallbackInvoker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-ircc.recv:
+			for _, callback := range ircc.messageCallbacks {
+				callback(string(msg))
+			}
+		}
+	}
+}
+
+func (ircc *IrcClient) clientReadWriteLoop(ctx context.Context) {
 	ircc.rwWaitGroup = &sync.WaitGroup{}
 
 	// The wait value is 1 since if any of sender or receiver exits,
@@ -105,12 +118,13 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) {
 	rwctx, cancel := context.WithCancel(ctx) // Create a new context for the sender and receiver
 	go ircc.receiverLoop(rwctx)              // Start the receiver loop
 	go ircc.senderLoop(rwctx)                // Start the sender loop
+	go ircc.receiverCallbackInvoker(rwctx)   // Start the receiver callback invoker
 
 	ircc.rwWaitGroup.Wait()
 
 	// If we reach here, it means that the sender or receiver has exited.
-	cancel() // Cancel the context to stop the other goroutine.
-	ircc.clientLoopWaitGroup.Done()
+	cancel()                             // Cancel the context to stop the other goroutine.
+	ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
 }
 
 func (ircc *IrcClient) sendMessageInternal(msg []byte) {
@@ -122,6 +136,10 @@ func (ircc *IrcClient) pingPong() {
 	ircc.sendMessageInternal([]byte("PING :tmi.twitch.tv"))
 }
 
+func (ircc *IrcClient) RegisterMessageCallback(callback IrcMessageCallback) {
+	ircc.messageCallbacks = append(ircc.messageCallbacks, callback)
+}
+
 func (ircc *IrcClient) SendMessage(msg string) {
 	ircc.sendMessageInternal([]byte(msg))
 }
@@ -131,7 +149,7 @@ func (ircc *IrcClient) SendLogin() {
 	ircc.SendMessage("NICK " + ircc.Nick)
 }
 
-func (ircc *IrcClient) Connect(ctx context.Context) error {
+func (ircc *IrcClient) connect(ctx context.Context) error {
 	connection, err := net.Dial("tcp4", "irc.chat.twitch.tv:6667")
 	if err != nil {
 		return err
@@ -146,31 +164,35 @@ func (ircc *IrcClient) Init() error {
 	ircc.send = make(chan []byte, 8192) // Size is for test
 
 	init_ctx := context.Background()
-	err := ircc.Connect(init_ctx)
+	err := ircc.connect(init_ctx)
 	if err != nil {
 		return err
 	}
 
-	ircc.clientLoopWaitGroup = &sync.WaitGroup{}
-	ircc.clientLoopWaitGroup.Add(1)
-	go ircc.ClientLoop(init_ctx)
+	ircc.clientLoopCondition = sync.NewCond(&sync.Mutex{})
+	go ircc.clientReadWriteLoop(init_ctx)
 
 	// Send PASS and NICK
 	ircc.SendLogin()
 
 	// wait
-	ircc.clientLoopWaitGroup.Wait()
+	ircc.clientLoopCondition.Wait()
 
 	return nil
 
 }
 func main() {
 
+	sampleCallback := func(msg string) {
+		fmt.Println("<CBLK> Received message: ", msg)
+	}
+
 	ircc := IrcClient{
 		Nick: "justinfan123",
 		Pass: "bruh",
 	}
 
+	ircc.RegisterMessageCallback(sampleCallback)
 	err := ircc.Init()
 	if err != nil {
 		log.Fatal(err)
