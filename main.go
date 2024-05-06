@@ -31,8 +31,8 @@ type IrcClient struct {
 	messageCallbacks []IrcMessageCallback
 
 	// WaitGroup for the sender and receiver
-	clientLoopCondition *sync.Cond
-	rwWaitGroup         *sync.WaitGroup // WaitGroup for the sender and receiver
+
+	rwWaitGroup *sync.WaitGroup // WaitGroup for the sender and receiver
 }
 
 func (ircc *IrcClient) senderLoop(ctx context.Context) {
@@ -123,19 +123,10 @@ func (ircc *IrcClient) clientReadWriteLoop(ctx context.Context) {
 	go ircc.senderLoop(rwctx)              // Start the sender loop
 	go ircc.receiverCallbackInvoker(rwctx) // Start the receiver callback invoker
 
-	select { // Context status check.
-	case <-ctx.Done():
-		cancel()
-		ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
-		return
-	default:
+	ircc.rwWaitGroup.Wait()
 
-		ircc.rwWaitGroup.Wait()
-
-		// If we reach here, it means that the sender or receiver has exited.
-		cancel()                             // Cancel the context to stop the other goroutine.
-		ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
-	}
+	// If we reach here, it means that the sender or receiver has exited.
+	cancel() // Cancel the context to stop the other goroutine.
 
 }
 
@@ -177,27 +168,45 @@ func (ircc *IrcClient) connect(ctx context.Context) error {
 	}
 }
 
-func (ircc *IrcClient) Init() error {
+func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 	ircc.recv = make(chan []byte, 8192) // Size is for test
 	ircc.send = make(chan []byte, 8192) // Size is for test
 
-	init_ctx := context.Background()
-	err := ircc.connect(init_ctx)
-	if err != nil {
-		return err
+	connection_result := make(chan error)
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		connection_result <- ircc.connect(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		cancel()
+		return ctx.Err()
+	case err := <-connection_result:
+		if err != nil {
+			return err
+		}
 	}
 
-	ircc.clientLoopCondition = sync.NewCond(&sync.Mutex{})
-	go ircc.clientReadWriteLoop(init_ctx)
+	rw_ctx, cancel := context.WithCancel(ctx)
+	rw_loop_result := make(chan interface{})
+	go func() {
+		ircc.clientReadWriteLoop(rw_ctx)
+		rw_loop_result <- nil
+	}()
 
 	// Send PASS and NICK
 	ircc.SendLogin()
 
-	// wait
-	ircc.clientLoopCondition.Wait()
-
-	return nil
-
+	select {
+	case <-ctx.Done():
+		cancel()
+		return ctx.Err()
+	case <-rw_loop_result:
+		cancel()
+		return nil
+	}
 }
 func main() {
 
@@ -212,7 +221,8 @@ func main() {
 	}
 
 	ircc.RegisterMessageCallback(sampleCallback)
-	err := ircc.Init()
+	ctx := context.Background()
+	err := ircc.ClientLoop(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
