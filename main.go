@@ -34,7 +34,7 @@ type IrcClient struct {
 	rwWaitGroup *sync.WaitGroup
 
 	// Condition indicating if the client is successfully initialized.
-	initialized *sync.Cond
+	initialized *sync.WaitGroup
 
 	// Timestamp for last received PONG.
 	lastPong time.Time
@@ -155,8 +155,15 @@ func (ircc *IrcClient) sendMessageUnblocked(msg string) {
 
 func (ircc *IrcClient) SendMessage(msg string) {
 	go func() {
-		ircc.initialized.Wait()
-		ircc.sendMessageInternal([]byte(msg))
+		for {
+			if ircc.initialized != nil {
+				ircc.initialized.Wait()
+				ircc.sendMessageInternal([]byte(msg))
+				break
+			} else {
+				continue
+			}
+		}
 	}()
 }
 
@@ -185,7 +192,8 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 	ircc.recv = make(chan []byte, 8192) // Size is for test
 	ircc.send = make(chan []byte, 8192) // Size is for test
 
-	ircc.initialized = sync.NewCond(&sync.Mutex{})
+	ircc.initialized = &sync.WaitGroup{}
+	ircc.initialized.Add(1)
 
 	connection_result := make(chan error)
 	ctx, cancel := context.WithCancel(ctx)
@@ -215,7 +223,7 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 	ircc.SendLogin()
 
 	// Set client as initialized.
-	ircc.initialized.Broadcast()
+	ircc.initialized.Done()
 
 	select {
 	case <-ctx.Done():
@@ -257,6 +265,7 @@ func main() {
 	// Send test.
 	go func() {
 		ircc.SendMessage("JOIN #cfairy")
+		ircc.SendMessage("PRIVMSG #cfairy :Hello World!")
 	}()
 
 	select {
