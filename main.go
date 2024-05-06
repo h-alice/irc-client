@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type IrcMessageCallback func(string)
+type IrcMessageCallback func(string) error
 type IrcClient struct {
 	Nick string
 	Pass string
@@ -89,7 +89,6 @@ func (ircc *IrcClient) receiverLoop(ctx context.Context) {
 					break // Break the loop.
 				}
 			}
-
 			ircc.recv <- temp_line.Bytes() // Send the line to the receiver channel.
 		}
 	}
@@ -102,29 +101,42 @@ func (ircc *IrcClient) receiverCallbackInvoker(ctx context.Context) {
 			return
 		case msg := <-ircc.recv:
 			for _, callback := range ircc.messageCallbacks {
-				callback(string(msg))
+				err := callback(string(msg))
+				if err != nil {
+					log.Println("Error occurred and ignored in callback:", err)
+				}
 			}
 		}
 	}
 }
 
 func (ircc *IrcClient) clientReadWriteLoop(ctx context.Context) {
-	ircc.rwWaitGroup = &sync.WaitGroup{}
 
+	rwctx, cancel := context.WithCancel(ctx) // Create a new context for the sender and receiver
+	ircc.rwWaitGroup = &sync.WaitGroup{}     // Initialize the wait group
 	// The wait value is 1 since if any of sender or receiver exits,
 	// the client should exit as well.
 	ircc.rwWaitGroup.Add(1)
 
-	rwctx, cancel := context.WithCancel(ctx) // Create a new context for the sender and receiver
-	go ircc.receiverLoop(rwctx)              // Start the receiver loop
-	go ircc.senderLoop(rwctx)                // Start the sender loop
-	go ircc.receiverCallbackInvoker(rwctx)   // Start the receiver callback invoker
+	// Start the sender and receiver goroutines.
+	go ircc.receiverLoop(rwctx)            // Start the receiver loop
+	go ircc.senderLoop(rwctx)              // Start the sender loop
+	go ircc.receiverCallbackInvoker(rwctx) // Start the receiver callback invoker
 
-	ircc.rwWaitGroup.Wait()
+	select { // Context status check.
+	case <-ctx.Done():
+		cancel()
+		ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
+		return
+	default:
 
-	// If we reach here, it means that the sender or receiver has exited.
-	cancel()                             // Cancel the context to stop the other goroutine.
-	ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
+		ircc.rwWaitGroup.Wait()
+
+		// If we reach here, it means that the sender or receiver has exited.
+		cancel()                             // Cancel the context to stop the other goroutine.
+		ircc.clientLoopCondition.Broadcast() // Notify that the client has exited.
+	}
+
 }
 
 func (ircc *IrcClient) sendMessageInternal(msg []byte) {
@@ -189,8 +201,9 @@ func (ircc *IrcClient) Init() error {
 }
 func main() {
 
-	sampleCallback := func(msg string) {
+	sampleCallback := func(msg string) error {
 		fmt.Println("<CBLK> Received message: ", msg)
+		return nil
 	}
 
 	ircc := IrcClient{
