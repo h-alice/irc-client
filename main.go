@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type IrcMessageCallback func(string) error
+type IrcMessageCallback func(*IrcClient, string) error
 type IrcClient struct {
 	Nick string
 	Pass string
@@ -31,8 +31,10 @@ type IrcClient struct {
 	messageCallbacks []IrcMessageCallback
 
 	// WaitGroup for the sender and receiver
+	rwWaitGroup *sync.WaitGroup
 
-	rwWaitGroup *sync.WaitGroup // WaitGroup for the sender and receiver
+	// Timestamp for last received PONG.
+	lastPong time.Time
 }
 
 func (ircc *IrcClient) senderLoop(ctx context.Context) {
@@ -101,7 +103,7 @@ func (ircc *IrcClient) receiverCallbackInvoker(ctx context.Context) {
 			return
 		case msg := <-ircc.recv:
 			for _, callback := range ircc.messageCallbacks {
-				err := callback(string(msg))
+				err := callback(ircc, string(msg))
 				if err != nil {
 					log.Println("Error occurred and ignored in callback:", err)
 				}
@@ -208,9 +210,17 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 		return nil
 	}
 }
+
+func lastPongTracker(ircc *IrcClient, msg string) error {
+	if msg == "PONG :tmi.twitch.tv" {
+		ircc.lastPong = time.Now()
+	}
+	return nil
+}
+
 func main() {
 
-	sampleCallback := func(msg string) error {
+	sampleCallback := func(ircc *IrcClient, msg string) error {
 		fmt.Println("<CBLK> Received message: ", msg)
 		return nil
 	}
