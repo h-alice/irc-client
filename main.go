@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+type IrcMessageCallback func(string)
 type IrcClient struct {
 	Nick string
 	Pass string
@@ -26,6 +27,9 @@ type IrcClient struct {
 	// Underlying connection
 	conn net.Conn
 
+	// List of message callbacks
+	messageCallbacks []IrcMessageCallback
+
 	// WaitGroup for the sender and receiver
 	clientLoopWaitGroup *sync.WaitGroup
 	rwWaitGroup         *sync.WaitGroup // WaitGroup for the sender and receiver
@@ -38,8 +42,6 @@ func (ircc *IrcClient) senderLoop(ctx context.Context) {
 			ircc.rwWaitGroup.Done()
 			return
 		case msg := <-ircc.send:
-
-			msg = append(msg, '\r', '\n')
 
 			_, err := ircc.conn.Write(msg)
 			if err != nil {
@@ -111,9 +113,22 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) {
 	ircc.clientLoopWaitGroup.Done()
 }
 
-func (ircc *IrcClient) SendMessageRaw(ctx context.Context, conn net.Conn, msg string) error {
-	ircc.send <- []byte(msg)
-	return nil
+func (ircc *IrcClient) sendMessageInternal(msg []byte) {
+	msg = append(msg, '\r', '\n') // Append the CRLF to the message.
+	ircc.send <- []byte(msg)      // Send the message to the sender channel.
+}
+
+func (ircc *IrcClient) pingPong() {
+	ircc.sendMessageInternal([]byte("PING :tmi.twitch.tv"))
+}
+
+func (ircc *IrcClient) SendMessage(msg string) {
+	ircc.sendMessageInternal([]byte(msg))
+}
+
+func (ircc *IrcClient) SendLogin() {
+	ircc.SendMessage("PASS " + ircc.Pass)
+	ircc.SendMessage("NICK " + ircc.Nick)
 }
 
 func (ircc *IrcClient) Connect(ctx context.Context) error {
@@ -141,8 +156,7 @@ func (ircc *IrcClient) Init() error {
 	go ircc.ClientLoop(init_ctx)
 
 	// Send PASS and NICK
-	ircc.SendMessageRaw(init_ctx, ircc.conn, "PASS "+ircc.Pass+"\r\n")
-	ircc.SendMessageRaw(init_ctx, ircc.conn, "NICK "+ircc.Nick+"\r\n")
+	ircc.SendLogin()
 
 	// wait
 	ircc.clientLoopWaitGroup.Wait()
