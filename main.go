@@ -33,6 +33,9 @@ type IrcClient struct {
 	// WaitGroup for the sender and receiver
 	rwWaitGroup *sync.WaitGroup
 
+	// Condition indicating if the client is successfully initialized.
+	initialized *sync.Cond
+
 	// Timestamp for last received PONG.
 	lastPong time.Time
 }
@@ -145,13 +148,21 @@ func (ircc *IrcClient) RegisterMessageCallback(callback IrcMessageCallback) {
 	ircc.messageCallbacks = append(ircc.messageCallbacks, callback)
 }
 
+// Message sent by this function has first priority.
+func (ircc *IrcClient) sendMessageUnblocked(msg string) {
+	go ircc.sendMessageInternal([]byte(msg))
+}
+
 func (ircc *IrcClient) SendMessage(msg string) {
-	ircc.sendMessageInternal([]byte(msg))
+	go func() {
+		ircc.initialized.Wait()
+		ircc.sendMessageInternal([]byte(msg))
+	}()
 }
 
 func (ircc *IrcClient) SendLogin() {
-	ircc.SendMessage("PASS " + ircc.Pass)
-	ircc.SendMessage("NICK " + ircc.Nick)
+	ircc.sendMessageUnblocked("PASS " + ircc.Pass)
+	ircc.sendMessageUnblocked("NICK " + ircc.Nick)
 }
 
 func (ircc *IrcClient) connect(ctx context.Context) error {
@@ -173,6 +184,8 @@ func (ircc *IrcClient) connect(ctx context.Context) error {
 func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 	ircc.recv = make(chan []byte, 8192) // Size is for test
 	ircc.send = make(chan []byte, 8192) // Size is for test
+
+	ircc.initialized = sync.NewCond(&sync.Mutex{})
 
 	connection_result := make(chan error)
 	ctx, cancel := context.WithCancel(ctx)
@@ -200,6 +213,9 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 
 	// Send PASS and NICK
 	ircc.SendLogin()
+
+	// Set client as initialized.
+	ircc.initialized.Broadcast()
 
 	select {
 	case <-ctx.Done():
@@ -231,10 +247,21 @@ func main() {
 	}
 
 	ircc.RegisterMessageCallback(sampleCallback)
+
 	ctx := context.Background()
-	err := ircc.ClientLoop(ctx)
-	if err != nil {
-		log.Fatal(err)
+	client_status := make(chan error)
+	go func() {
+		client_status <- ircc.ClientLoop(ctx)
+	}()
+
+	// Send test.
+	go func() {
+		ircc.SendMessage("JOIN #cfairy")
+	}()
+
+	select {
+	case <-client_status:
+		fmt.Println("Client exited")
 	}
 
 }
