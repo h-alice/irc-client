@@ -53,41 +53,42 @@ func (ircc *IrcClient) senderLoop(ctx context.Context) {
 }
 
 func (ircc *IrcClient) receiverLoop(ctx context.Context) {
-	one_byte_buf := make([]byte, 1)
+
 	for {
 		select {
-		case <-ctx.Done():
-			ircc.rwWaitGroup.Done()
-			return
+		case <-ctx.Done(): // If the context is cancelled, then exit the loop.
+			ircc.rwWaitGroup.Done() // Decrement the wait group.
+			return                  // Exit the loop.
 		default:
-			temp_line := bytes.NewBuffer(nil)
-
+			temp_line := bytes.NewBuffer(nil) // Create a new buffer for each line.
+			one_byte_buf := make([]byte, 1)   // Create a buffer of size 1 to read one byte at a time.
+			// Read, one byte at a time, until we reach a newline.
 			for {
-				n, err := ircc.conn.Read(one_byte_buf)
-				if err != nil {
-					if err == io.EOF {
-						fmt.Println("Connection closed by server")
-						ircc.rwWaitGroup.Done()
-						return
+				n, err := ircc.conn.Read(one_byte_buf) // Read one byte.
+				if err != nil {                        // Check for errors.
+					if err == io.EOF { // If EOF, then the connection is closed by the server.
+						fmt.Println("Connection closed by server") // Print a message and return.
+						ircc.rwWaitGroup.Done()                    // Decrement the wait group.
+						return                                     // Exit the loop.
+					} else { // Some other error occurred.
+						fmt.Println("Error reading from connection:", err) // Print the error.
+						ircc.rwWaitGroup.Done()                            // Decrement the wait group.
+						return                                             // Exit the loop.
 					}
-					fmt.Println("Error reading from connection:", err)
-					ircc.rwWaitGroup.Done()
-					return
 				}
 
-				if n == 0 {
+				if n == 0 { // If no bytes were read, then continue.
 					continue
 				}
 
-				temp_line.Write(one_byte_buf)
+				temp_line.Write(one_byte_buf) // Write the byte to the line buffer.
 
-				if one_byte_buf[0] == '\n' {
-					break
+				if one_byte_buf[0] == '\n' { // If the byte is a newline, then break.
+					break // Break the loop.
 				}
 			}
 
-			ircc.recv <- temp_line.Bytes()
-
+			ircc.recv <- temp_line.Bytes() // Send the line to the receiver channel.
 		}
 	}
 }
