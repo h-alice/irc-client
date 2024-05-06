@@ -28,10 +28,10 @@ type IrcClient struct {
 
 	// WaitGroup for the sender and receiver
 	clientLoopWaitGroup *sync.WaitGroup
-	rwWaitGroup         *sync.WaitGroup
+	rwWaitGroup         *sync.WaitGroup // WaitGroup for the sender and receiver
 }
 
-func (ircc *IrcClient) SenderLoop(ctx context.Context) {
+func (ircc *IrcClient) senderLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -102,7 +102,7 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) {
 
 	rwctx, cancel := context.WithCancel(ctx) // Create a new context for the sender and receiver
 	go ircc.ReceiverLoop(rwctx)              // Start the receiver loop
-	go ircc.SenderLoop(rwctx)                // Start the sender loop
+	go ircc.senderLoop(rwctx)                // Start the sender loop
 
 	ircc.rwWaitGroup.Wait()
 
