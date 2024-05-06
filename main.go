@@ -150,13 +150,19 @@ func (ircc *IrcClient) SendLogin() {
 }
 
 func (ircc *IrcClient) connect(ctx context.Context) error {
-	connection, err := net.Dial("tcp4", "irc.chat.twitch.tv:6667")
-	if err != nil {
-		return err
-	}
 
-	ircc.conn = connection
-	return nil
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		connection, err := net.Dial("tcp4", "irc.chat.twitch.tv:6667")
+		if err != nil {
+			return err
+		}
+
+		ircc.conn = connection
+		return nil
+	}
 }
 
 func (ircc *IrcClient) Init() error {
