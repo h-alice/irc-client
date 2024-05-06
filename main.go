@@ -48,13 +48,11 @@ func (ircc *IrcClient) senderLoop(ctx context.Context) {
 				return
 			}
 
-			log.Println("Sending message:", msg)
-
 		}
 	}
 }
 
-func (ircc *IrcClient) ReceiverLoop(ctx context.Context) {
+func (ircc *IrcClient) receiverLoop(ctx context.Context) {
 	one_byte_buf := make([]byte, 1)
 	for {
 		select {
@@ -63,7 +61,7 @@ func (ircc *IrcClient) ReceiverLoop(ctx context.Context) {
 			return
 		default:
 			temp_line := bytes.NewBuffer(nil)
-			// Read, byte by byte, until hit a newline
+
 			for {
 				n, err := ircc.conn.Read(one_byte_buf)
 				if err != nil {
@@ -82,11 +80,12 @@ func (ircc *IrcClient) ReceiverLoop(ctx context.Context) {
 				}
 
 				temp_line.Write(one_byte_buf)
+
 				if one_byte_buf[0] == '\n' {
 					break
 				}
 			}
-			log.Println("Received message:", temp_line.String())
+
 			ircc.recv <- temp_line.Bytes()
 
 		}
@@ -101,7 +100,7 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) {
 	ircc.rwWaitGroup.Add(1)
 
 	rwctx, cancel := context.WithCancel(ctx) // Create a new context for the sender and receiver
-	go ircc.ReceiverLoop(rwctx)              // Start the receiver loop
+	go ircc.receiverLoop(rwctx)              // Start the receiver loop
 	go ircc.senderLoop(rwctx)                // Start the sender loop
 
 	ircc.rwWaitGroup.Wait()
