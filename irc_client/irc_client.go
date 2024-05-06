@@ -167,6 +167,10 @@ func (ircc *IrcClient) SendMessage(msg string) {
 	}()
 }
 
+func (ircc *IrcClient) SendCapabilityRequest(capability string) {
+	ircc.SendMessage("CAP REQ :" + capability)
+}
+
 func (ircc *IrcClient) SendLogin() {
 	ircc.sendMessageUnblocked("PASS " + ircc.Pass)
 	ircc.sendMessageUnblocked("NICK " + ircc.Nick)
