@@ -36,6 +36,9 @@ type IrcClient struct {
 	// Condition indicating if the client is successfully initialized.
 	initialized *sync.WaitGroup
 
+	// Condition indicating if the client got welcome message.
+	readyToSend *sync.WaitGroup
+
 	// Timestamp for last received PONG.
 	lastPong time.Time
 }
@@ -156,8 +159,9 @@ func (ircc *IrcClient) sendMessageUnblocked(msg string) {
 func (ircc *IrcClient) SendMessage(msg string) {
 	go func() {
 		for {
-			if ircc.initialized != nil {
+			if ircc.initialized != nil && ircc.readyToSend != nil {
 				ircc.initialized.Wait()
+				ircc.readyToSend.Wait()
 				ircc.sendMessageInternal([]byte(msg))
 				break
 			} else {
@@ -199,6 +203,9 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 	ircc.initialized = &sync.WaitGroup{}
 	ircc.initialized.Add(1)
 
+	ircc.readyToSend = &sync.WaitGroup{}
+	ircc.readyToSend.Add(1)
+
 	connection_result := make(chan error)
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -237,6 +244,10 @@ func (ircc *IrcClient) ClientLoop(ctx context.Context) error {
 		cancel()
 		return nil
 	}
+}
+
+func (ircc *IrcClient) Ready() {
+	ircc.readyToSend.Done()
 }
 
 func lastPongTracker(ircc *IrcClient, msg string) error {
