@@ -14,3 +14,12 @@ const (
 func IsEndOfTwitchWelcomeMessage(msg IrcMessage) bool {
 	return msg.Command == "376" && msg.Prefix.Nickname == "tmi.twitch.tv"
 }
+
+func endOfTwitchBannerCallback(ircc *IrcClient, msg string) error {
+	parsed_message, _ := ParseIrcMessage(msg)
+
+	if IsEndOfTwitchWelcomeMessage(parsed_message) {
+		ircc.Ready()
+	}
+	return nil
+}
