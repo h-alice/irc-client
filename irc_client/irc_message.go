@@ -11,6 +11,8 @@ var (
 
 type IrcMessageTags map[string]string
 
+type IrcMessageParams []string
+
 type IrcMessagePrefix struct {
 	Nickname string
 	Username string
