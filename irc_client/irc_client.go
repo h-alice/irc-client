@@ -139,8 +139,7 @@ func (ircc *IrcClient) clientReadWriteLoop(ctx context.Context) {
 }
 
 func (ircc *IrcClient) sendMessageInternal(msg []byte) {
-	msg = append(msg, '\r', '\n') // Append the CRLF to the message.
-	ircc.send <- []byte(msg)      // Send the message to the sender channel.
+	ircc.send <- []byte(msg) // Send the message to the sender channel.
 }
 
 func (ircc *IrcClient) pingPong() {
@@ -152,11 +151,16 @@ func (ircc *IrcClient) RegisterMessageCallback(callback IrcMessageCallback) {
 }
 
 // Message sent by this function has first priority.
-func (ircc *IrcClient) sendMessageUnblocked(msg string) {
+func (ircc *IrcClient) sendRawMessagePrivileged(msg string) {
+
+	msg = msg + "\r\n" // Append the CRLF to the message.
 	go ircc.sendMessageInternal([]byte(msg))
 }
 
-func (ircc *IrcClient) SendMessage(msg string) {
+func (ircc *IrcClient) SendRawMessage(msg string) {
+
+	msg = msg + "\r\n" // Append the CRLF to the message.
+
 	go func() {
 		for {
 			if ircc.initialized != nil && ircc.readyToSend != nil {
@@ -172,12 +176,12 @@ func (ircc *IrcClient) SendMessage(msg string) {
 }
 
 func (ircc *IrcClient) SendCapabilityRequest(capability string) {
-	ircc.SendMessage("CAP REQ :" + capability)
+	ircc.SendRawMessage("CAP REQ :" + capability)
 }
 
 func (ircc *IrcClient) SendLogin() {
-	ircc.sendMessageUnblocked("PASS " + ircc.Pass)
-	ircc.sendMessageUnblocked("NICK " + ircc.Nick)
+	ircc.sendRawMessagePrivileged("PASS " + ircc.Pass)
+	ircc.sendRawMessagePrivileged("NICK " + ircc.Nick)
 }
 
 func (ircc *IrcClient) connect(ctx context.Context) error {
