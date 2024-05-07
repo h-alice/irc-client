@@ -10,3 +10,7 @@ const (
 	// Capability to request commands.
 	CapabilityCommands = "twitch.tv/commands"
 )
+
+func IsEndOfTwitchWelcomeMessage(msg IrcMessage) bool {
+	return msg.Command == "376" && msg.Prefix.Nickname == "tmi.twitch.tv"
+}
