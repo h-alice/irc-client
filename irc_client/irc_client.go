@@ -145,10 +145,6 @@ func (ircc *IrcClient) sendMessageInternal(msg []byte) {
 	ircc.send <- []byte(msg) // Send the message to the sender channel.
 }
 
-func (ircc *IrcClient) pingPong() {
-	ircc.sendMessageInternal([]byte("PING :tmi.twitch.tv"))
-}
-
 func (ircc *IrcClient) RegisterMessageCallback(callback IrcMessageCallback) {
 	ircc.messageCallbacks = append(ircc.messageCallbacks, callback)
 }
@@ -266,6 +262,8 @@ func NewTwitchIrcClient(nick string, pass string) *IrcClient {
 	}
 
 	ircc.RegisterMessageCallback(endOfTwitchBannerCallback)
+	ircc.RegisterMessageCallback(pingHandler)
+	ircc.RegisterMessageCallback(lastPongTracker)
 
 	return &ircc
 }
