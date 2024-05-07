@@ -1,4 +1,4 @@
-package irc_client
+package irc
 
 import (
 	"bytes"

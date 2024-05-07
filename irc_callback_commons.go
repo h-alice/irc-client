@@ -1,4 +1,4 @@
-package irc_client
+package irc
 
 func pingHandler(ircc *IrcClient, msg string) error {
 	parsed_message, err := ParseIrcMessage(msg)
