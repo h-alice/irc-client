@@ -13,6 +13,9 @@ import (
 
 type IrcMessageCallback func(*IrcClient, string) error
 type IrcClient struct {
+	server string
+	port   int
+
 	Nick string
 	Pass string
 
@@ -190,7 +193,7 @@ func (ircc *IrcClient) connect(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		connection, err := net.Dial("tcp4", "irc.chat.twitch.tv:6667")
+		connection, err := net.Dial("tcp4", fmt.Sprintf("%s:%d", ircc.server, ircc.port))
 		if err != nil {
 			return err
 		}
@@ -254,9 +257,15 @@ func (ircc *IrcClient) Ready() {
 	ircc.readyToSend.Done()
 }
 
-func lastPongTracker(ircc *IrcClient, msg string) error {
-	if msg == "PONG :tmi.twitch.tv" {
-		ircc.lastPong = time.Now()
+func NewTwitchIrcClient(nick string, pass string) *IrcClient {
+	ircc := IrcClient{
+		server: "irc.chat.twitch.tv",
+		port:   6667,
+		Nick:   nick,
+		Pass:   pass,
 	}
-	return nil
+
+	ircc.RegisterMessageCallback(endOfTwitchBannerCallback)
+
+	return &ircc
 }
