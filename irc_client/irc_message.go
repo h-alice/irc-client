@@ -9,6 +9,8 @@ var (
 	ErrorInvalidMessage = errors.New("invalid message")
 )
 
+type IrcMessageTags map[string]string
+
 type IrcMessagePrefix struct {
 	Nickname string
 	Username string
@@ -21,6 +23,28 @@ type IrcMessage struct {
 	Command string
 	Params  []string
 	Message string
+}
+
+func (irct IrcMessageTags) String() string {
+	current_string := "@"
+	for key, value := range irct {
+		current_string += key + "=" + value + ";"
+	}
+
+	return current_string
+}
+
+func (ircp IrcMessagePrefix) String() string {
+	current_string := ":"
+	current_string += ircp.Nickname
+	if ircp.Username != "" {
+		current_string += "!" + ircp.Username
+	}
+	if ircp.Hostname != "" {
+		current_string += "@" + ircp.Hostname
+	}
+
+	return current_string
 }
 
 func ParseIrcMessage(irc_message_string string) (IrcMessage, error) {
