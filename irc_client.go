@@ -174,6 +174,10 @@ func (ircc *IrcClient) SendRawMessage(msg string) {
 	}()
 }
 
+func (ircc *IrcClient) SendMessage(msg IrcMessage) {
+	ircc.SendRawMessage(msg.String())
+}
+
 func (ircc *IrcClient) SendCapabilityRequest(capability string) {
 	ircc.SendRawMessage("CAP REQ :" + capability)
 }
