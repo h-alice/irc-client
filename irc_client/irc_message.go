@@ -58,6 +58,27 @@ func (ircp IrcMessagePrefix) String() string {
 	return current_string
 }
 
+func (ircm IrcMessage) String() string {
+	current_string := ""
+	if ircm.Tags != nil {
+		current_string += ircm.Tags.String() + " "
+	}
+	if ircm.Prefix.Nickname != "" {
+		current_string += ircm.Prefix.String() + " "
+	}
+	current_string += ircm.Command + " " // Command is the must-have field.
+	current_string += ircm.Params.String()
+	if ircm.Message != "" {
+		current_string += " :" + ircm.Message
+	}
+
+	// Add the final CRLF.
+	current_string += "\r\n"
+
+	return current_string
+
+}
+
 func ParseIrcMessage(irc_message_string string) (IrcMessage, error) {
 	irc_message_struct := IrcMessage{}                        // Initialize the struct.
 	previous := irc_message_string                            // Save the original string.
