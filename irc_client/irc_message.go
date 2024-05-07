@@ -103,6 +103,10 @@ func ParseIrcMessage(irc_message_string string) (IrcMessage, error) {
 		param_string = after[:len(after)-2]
 	} else {
 		// There's a trailing message.
+		// Remove the trailing CRLF.
+		if trailing_message[len(trailing_message)-2:] == "\r\n" { // NOTE: There might no need to check this.
+			trailing_message = trailing_message[:len(trailing_message)-2]
+		}
 		irc_message_struct.Message = trailing_message // Save the trailing message.
 	}
 
