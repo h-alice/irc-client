@@ -28,12 +28,8 @@ type IrcMessage struct {
 }
 
 func (ircp IrcMessageParams) String() string {
-	current_string := ""
-	for _, value := range ircp {
-		current_string += value + " "
-	}
 
-	return current_string
+	return strings.Join(ircp, " ")
 }
 
 func (irct IrcMessageTags) String() string {
@@ -166,8 +162,9 @@ func ParseIrcMessage(irc_message_string string) (IrcMessage, error) {
 		irc_message_struct.Message = trailing_message // Save the trailing message.
 	}
 
-	params := strings.Split(param_string, " ") // Split the parameters by space.
-	irc_message_struct.Params = params         // Save the parameters.
+	param_string = strings.TrimSpace(param_string) // Trim the spaces.
+	params := strings.Split(param_string, " ")     // Split the parameters by space.
+	irc_message_struct.Params = params             // Save the parameters.
 
 	return irc_message_struct, nil // Return the struct.
 }
