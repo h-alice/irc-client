@@ -20,11 +20,20 @@ type IrcMessagePrefix struct {
 }
 
 type IrcMessage struct {
-	Tags    map[string]string
+	Tags    IrcMessageTags
 	Prefix  IrcMessagePrefix
 	Command string
-	Params  []string
+	Params  IrcMessageParams
 	Message string
+}
+
+func (ircp IrcMessageParams) String() string {
+	current_string := ""
+	for _, value := range ircp {
+		current_string += value + " "
+	}
+
+	return current_string
 }
 
 func (irct IrcMessageTags) String() string {
