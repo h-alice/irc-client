@@ -29,7 +29,11 @@ type IrcMessage struct {
 
 func (ircp IrcMessageParams) String() string {
 
-	return strings.Join(ircp, " ")
+	if len(ircp) == 0 {
+		return " "
+	} else {
+		return strings.Join(ircp, " ")
+	}
 }
 
 func (irct IrcMessageTags) String() string {
@@ -65,7 +69,7 @@ func (ircm IrcMessage) String() string {
 	current_string += ircm.Command + " " // Command is the must-have field.
 	current_string += ircm.Params.String()
 	if ircm.Message != "" {
-		current_string += " :" + ircm.Message
+		current_string += ":" + ircm.Message
 	}
 
 	// Add the final CRLF.
