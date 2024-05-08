@@ -11,7 +11,7 @@ func PRIVMSG(channel string, message string) IrcMessage {
 func JOIN(channel string) IrcMessage {
 	return IrcMessage{
 		Command: "JOIN",
-		Params:  []string{channel},
+		Params:  []string{"#" + channel},
 	}
 }
 
