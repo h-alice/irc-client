@@ -69,7 +69,7 @@ func (ircm IrcMessage) String() string {
 	current_string += ircm.Command + " " // Command is the must-have field.
 	current_string += ircm.Params.String()
 	if ircm.Message != "" {
-		current_string += ":" + ircm.Message
+		current_string += " :" + ircm.Message
 	}
 
 	// Add the final CRLF.

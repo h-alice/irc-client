@@ -3,7 +3,7 @@ package irc
 func PRIVMSG(channel string, message string) IrcMessage {
 	return IrcMessage{
 		Command: "PRIVMSG",
-		Params:  []string{channel + " "},
+		Params:  []string{channel},
 		Message: message,
 	}
 }
